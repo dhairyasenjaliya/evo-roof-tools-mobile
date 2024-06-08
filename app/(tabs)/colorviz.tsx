@@ -1,17 +1,17 @@
+import axios from "axios";
+import { Camera } from "expo-camera";
+import * as FileSystem from "expo-file-system";
+import * as ImagePicker from "expo-image-picker";
 import React, { useState } from "react";
 import {
-  View,
+  ActivityIndicator,
+  Alert,
   Button,
   Image,
   StyleSheet,
-  Alert,
   TextInput,
-  ActivityIndicator,
+  View,
 } from "react-native";
-import * as ImagePicker from "expo-image-picker";
-import { Camera } from "expo-camera";
-import axios from "axios";
-import * as FileSystem from "expo-file-system";
 
 axios.interceptors.request.use((request) => {
   console.log("Starting Request", JSON.stringify(request, null, 2));
@@ -31,6 +31,7 @@ axios.interceptors.response.use(
 
 export default function TileColorVisualizerScreen() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  console.log("🚀 ~ TileColorVisualizerScreen ~ selectedImage:", selectedImage);
   const [originalImage, setOriginalImage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [customR, setCustomR] = useState("0");
@@ -90,6 +91,9 @@ export default function TileColorVisualizerScreen() {
       const base64 = await FileSystem.readAsStringAsync(selectedImage, {
         encoding: "base64",
       });
+
+      console.log("Original Base64 Image Data:", base64.slice(0, 100)); // Log first 100 characters
+
       const formData = new FormData();
       formData.append("file", "data:image/jpeg;base64," + base64);
       formData.append("r", r.toString());
@@ -101,12 +105,34 @@ export default function TileColorVisualizerScreen() {
         body: formData,
       });
 
+      console.log("🚀 ~ sendImageForColorChange ~ response:", response);
+
+      if (!response.ok) {
+        throw new Error(`Server responded with status ${response.status}`);
+      }
+
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.startsWith("image/")) {
+        const textResponse = await response.text();
+        console.error("Server did not return an image:", textResponse);
+        Alert.alert(
+          "Error",
+          "Server did not return an image. Please check the server logs."
+        );
+        return;
+      }
+
       const blob = await response.blob();
+      console.log("🚀 ~ sendImageForColorChange ~ blob:", blob);
+
       const reader = new FileReader();
       reader.onloadend = () => {
-        // Ensure the result is treated as a string
         const base64data = reader.result;
+        console.log("🚀 ~ sendImageForColorChange ~ base64data:", base64data);
+
         if (typeof base64data === "string") {
+          console.log("Final Base64 Data URL:", base64data.slice(0, 100)); // Log first 100 characters
+
           setSelectedImage(base64data);
         } else {
           console.error(
@@ -114,6 +140,7 @@ export default function TileColorVisualizerScreen() {
           );
         }
       };
+
       reader.readAsDataURL(blob);
     } catch (error) {
       console.error("Upload failed:", error);
